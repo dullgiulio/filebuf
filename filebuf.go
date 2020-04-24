@@ -41,17 +41,13 @@ type Filebuf struct {
 	off  int64 // offset reading
 }
 
-const defaultMaxBufSize = 1 << 12
-
 // New returns a Filebuf ready to be used. Public parameters can still be
 // changed before using the buffer.
 //
-// New sets the default MaxBufSize to non-zero.
-//
-// It is not necessary to use New: new(Filebuf) will suffice for a memory only buffer.
-func New() *Filebuf {
+// Returned Filebuf will switch to a temporary file after writing size bytes to memory.
+func New(size int) *Filebuf {
 	return &Filebuf{
-		MaxBufSize: defaultMaxBufSize,
+		MaxBufSize: size,
 	}
 }
 
