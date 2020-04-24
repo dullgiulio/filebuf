@@ -14,6 +14,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"syscall"
 )
 
 type Filebuf struct {
@@ -113,6 +114,15 @@ func (f *Filebuf) Read(p []byte) (n int, err error) {
 	return n, nil
 }
 
+// ReadAt reads up to len(p) bytes at position pos. ReadAt is not safe for concurrent usage.
+func (f *Filebuf) ReadAt(p []byte, pos int64) (n int, err error) {
+	off := f.off
+	f.off = pos
+	n, err = f.Read(p)
+	f.off = off
+	return n, err
+}
+
 // ReadFrom reads r in full into the backing buffer or file. Returns the
 // number of read bytes or an error.
 func (f *Filebuf) ReadFrom(r io.Reader) (n int64, err error) {
@@ -175,6 +185,30 @@ func (f *Filebuf) Rewind() error {
 		}
 	}
 	return nil
+}
+
+// Clone creates a new Filebuf sharing the same backing memory and a duplicated file handle of
+// the same temporary backing file, if used.
+//
+// Clone is intended to provide multiple readers after writing has finished.
+//
+// Writing to either Filebuf after clone is not supported.
+//
+// All cloned Filebufs need to be closed after use.
+func (f *Filebuf) Clone() (*Filebuf, error) {
+	fb := *f
+	if fb.file != nil {
+		fd, err := syscall.Dup(int(f.file.Fd()))
+		if err != nil {
+			return nil, fmt.Errorf("cannot duplicate handle to backing file: %w", err)
+		}
+		name := f.file.Name()
+		fb.file = os.NewFile(uintptr(fd), name)
+		if fb.file == nil {
+			return nil, fmt.Errorf("could not create new file from descriptor %d", fd)
+		}
+	}
+	return &fb, nil
 }
 
 // Close closes the underlying buffer or file. Closing might return an error.
