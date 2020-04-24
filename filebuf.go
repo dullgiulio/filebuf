@@ -17,6 +17,13 @@ import (
 	"syscall"
 )
 
+// Filebuf provides a scratch space backed by memory or temporary
+// file depending on size of the written data.
+//
+// Intended usage is for writing and then reading back written data.
+// Use Clone() for multiple concurrent readers.
+//
+// Mixing of concurrent reads and writes is not supported.
 type Filebuf struct {
 	// Maximum memory size to use before switching to disk files.
 	// Default means using memory only.
