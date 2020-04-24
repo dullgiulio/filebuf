@@ -76,13 +76,13 @@ func (f *Filebuf) appendBuffer(p []byte) {
 	copy(f.buf[l:], p)
 }
 
-func (f *Filebuf) copyBuffer(p []byte) int {
-	end := int(f.off) + len(p)
+func (f *Filebuf) copyBuffer(p []byte, pos int) int {
+	end := int(pos) + len(p)
 	if end > len(f.buf) {
 		end = len(f.buf)
 	}
-	copy(p, f.buf[f.off:end])
-	return end - int(f.off)
+	copy(p, f.buf[pos:end])
+	return end - int(pos)
 }
 
 // Write writes to the backing buffer or disk file and returns the
@@ -104,26 +104,21 @@ func (f *Filebuf) Write(p []byte) (n int, err error) {
 
 // Read reads in slice p and returns the number of bytes read or and error.
 func (f *Filebuf) Read(p []byte) (n int, err error) {
-	if f.file != nil {
-		n, err := f.file.ReadAt(p, f.off)
-		f.off += int64(n)
-		return n, err
-	}
-	if int(f.off) >= len(f.buf) {
-		return 0, io.EOF
-	}
-	n = f.copyBuffer(p)
+	n, err = f.ReadAt(p, f.off)
 	f.off += int64(n)
-	return n, nil
+	return n, err
 }
 
 // ReadAt reads up to len(p) bytes at position pos. ReadAt is not safe for concurrent usage.
 func (f *Filebuf) ReadAt(p []byte, pos int64) (n int, err error) {
-	off := f.off
-	f.off = pos
-	n, err = f.Read(p)
-	f.off = off
-	return n, err
+	if f.file != nil {
+		return f.file.ReadAt(p, pos)
+	}
+	if int(pos) >= len(f.buf) {
+		return 0, io.EOF
+	}
+	n = f.copyBuffer(p, int(pos))
+	return n, nil
 }
 
 // ReadFrom reads r in full into the backing buffer or file. Returns the
