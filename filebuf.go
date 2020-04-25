@@ -39,6 +39,7 @@ type Filebuf struct {
 	buf  []byte
 	file *os.File
 	off  int64 // offset reading
+	size int64 // written size
 }
 
 // New returns a Filebuf ready to be used. Public parameters can still be
@@ -88,6 +89,12 @@ func (f *Filebuf) copyBuffer(p []byte, pos int) int {
 // Write writes to the backing buffer or disk file and returns the
 // number of written bytes or an error.
 func (f *Filebuf) Write(p []byte) (n int, err error) {
+	n, err = f.write(p)
+	f.size += int64(n)
+	return n, err
+}
+
+func (f *Filebuf) write(p []byte) (n int, err error) {
 	if f.file != nil {
 		return f.file.Write(p)
 	}
@@ -96,7 +103,8 @@ func (f *Filebuf) Write(p []byte) (n int, err error) {
 			return 0, err
 		}
 		f.buf = nil
-		return f.file.Write(p)
+		n, err := f.file.Write(p)
+		return n, err
 	}
 	f.appendBuffer(p)
 	return len(p), nil
@@ -124,6 +132,12 @@ func (f *Filebuf) ReadAt(p []byte, pos int64) (n int, err error) {
 // ReadFrom reads r in full into the backing buffer or file. Returns the
 // number of read bytes or an error.
 func (f *Filebuf) ReadFrom(r io.Reader) (n int64, err error) {
+	n, err = f.readFrom(r)
+	f.size += n
+	return n, err
+}
+
+func (f *Filebuf) readFrom(r io.Reader) (n int64, err error) {
 	if f.file != nil {
 		return io.Copy(f.file, r)
 	}
@@ -183,6 +197,11 @@ func (f *Filebuf) Rewind() error {
 		}
 	}
 	return nil
+}
+
+// Len returns the number of bytes written in the buffer
+func (f *Filebuf) Len() int64 {
+	return f.size
 }
 
 // Clone creates a new Filebuf sharing the same backing memory and a duplicated file handle of
