@@ -153,7 +153,7 @@ func (f *Filebuf) readFrom(r io.Reader) (n int64, err error) {
 	var tot int64
 	// read until limit; if limit is hit, switch to file to continue copying
 	for {
-		m, err := r.Read(f.buf[len(f.buf) : cap(f.buf)-len(f.buf)])
+		m, err := r.Read(f.buf[len(f.buf):cap(f.buf)])
 		f.buf = f.buf[:len(f.buf)+m]
 		tot += int64(m)
 		if err != nil {
