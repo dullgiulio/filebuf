@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/sha1"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"testing"
@@ -28,6 +29,42 @@ func readSum(r io.Reader) ([]byte, int64, error) {
 		return nil, 0, err
 	}
 	return h.Sum(nil), n, nil
+}
+
+func TestSmallWrites(t *testing.T) {
+	h := sha1.New()
+	fb := &Filebuf{MaxBufSize: 1024}
+	pr, pw := io.Pipe()
+	mw := io.MultiWriter(pw, h)
+	done := make(chan struct{})
+	go func() {
+		if _, err := fb.ReadFrom(pr); err != nil {
+			t.Fatalf("error reading from pipe reader: %v", err)
+		}
+		close(done)
+	}()
+	for i := 0; i < 20; i++ {
+		if _, err := fmt.Fprintf(mw, "test-write-%d", i); err != nil {
+			t.Fatalf("unexpected error in small write: %v", err)
+		}
+	}
+	randBytes := &io.LimitedReader{R: rand.Reader, N: 980}
+	if _, err := io.Copy(mw, randBytes); err != nil {
+		t.Fatalf("cannot copy rand bytes into filebuffer: %v", err)
+	}
+	if err := pw.Close(); err != nil {
+		t.Fatalf("cannot close pipe writer: %v", err)
+	}
+	<-done
+	s1 := h.Sum(nil)
+	h = sha1.New()
+	if _, err := io.Copy(h, fb); err != nil {
+		t.Fatalf("cannot copy data from filebuffer to hash: %v", err)
+	}
+	s2 := h.Sum(nil)
+	if bytes.Compare(s1, s2) != 0 {
+		t.Fatalf("checksums mismatch: %x != %x", s1, s2)
+	}
 }
 
 func TestCopyChecksum(t *testing.T) {
